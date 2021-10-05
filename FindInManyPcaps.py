@@ -38,29 +38,41 @@ def find_all_packets(directory):
     return packets
 
 
-def search_packets(pkts, srcs, dsts, src_port, dst_port):
+def search_packets(path, srcs, dsts, src_port, dst_port):
     result = []
+    all_packets = find_all_packets(path)
 
-    for pkt in pkts:
+    for pkt in all_packets:
         append = True
         line = str(pkt).split(" ")
         src = line[2]
         dst = line[3]
         proto = line[4]
 
-        if srcs is not None:
-            if src not in srcs:
-                append = False
+        if ":" not in src and ":" not in dst:   # ignore IPv6
+            #print("%s\t%s\t%s" % (src, dst, proto,))
 
-        if dsts is not None:
-            if dst not in dsts:
-                append = False
+            # if we're searching by source IP address or range but don't find a match...
+            if len(srcs) > 0:
+                if src not in srcs:
+                    append = False
 
-        if proto != src_port and proto != dst_port:
-            append = False
+            # as above
+            if len(dsts) > 0:
+                if dst not in dsts:
+                    append = False
 
-        if append:
-            result.append(pkt)
+            # if searching ports
+            if src_port is not None:
+                if proto != src_port:
+                    append = False
+
+            if dst_port is not None:
+                if proto != dst_port:
+                    append = False
+
+            if append:
+                result.append(pkt)
 
     return result
 
@@ -77,29 +89,30 @@ if __name__ == "__main__":
     path = args.p
     src = args.s
     dst = args.d
-    src_prt = args.sp
-    dst_prt = args.dp
+    src_port = args.sp
+    dst_port = args.dp
 
-    possible_sources = None
-    possible_destinations = None
+    possible_sources = []
+    possible_destinations = []
 
     if args.p is None:
         sys.exit("Must include the -p flag to provide a folder to search for PCAP files")
 
-    if src is not None and src.index('/') is not None:  # CIDR src address
-        possible_sources = IPNetwork(src)
+    if src is not None and "/" in src:  # CIDR src address
+        for ip in IPNetwork(src):
+            possible_sources.append("%s" % ip)
     else:
         if src is not None:
             possible_sources = [src]
 
-    if dst is not None and dst.index('/') is not None:  # CIDR src address
-        possible_destinations = IPNetwork(dst)
+    if dst is not None and "/" in dst:  # CIDR src address
+        for ip in IPNetwork(dst):
+            possible_destinations.append("%s" % ip)
     else:
         if dst is not None:
             possible_destinations = [dst]
 
-    all_packets = find_all_packets(path)
-    result = search_packets(all_packets, possible_sources, possible_destinations, src_prt, dst_prt)
+    result = search_packets(path, possible_sources, possible_destinations, src_port, dst_port)
 
     print("--------------------------")
     print(result)
